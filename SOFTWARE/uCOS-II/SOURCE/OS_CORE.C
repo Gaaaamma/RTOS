@@ -15,6 +15,7 @@
 #ifndef  OS_MASTER_FILE
 #define  OS_GLOBALS
 #include "includes.h"
+#include <string.h>
 #endif
 
 /*
@@ -25,6 +26,7 @@
 *       Indexed value corresponds to bit mask
 *********************************************************************************************************
 */
+char tmpBuf[10] = {0};
 
 INT8U  const  OSMapTbl[]   = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80};
 
@@ -169,6 +171,7 @@ void  OSIntEnter (void)
 *********************************************************************************************************
 */
 
+// TODO
 void  OSIntExit (void)
 {
 #if OS_CRITICAL_METHOD == 3                                /* Allocate storage for CPU status register */
@@ -187,6 +190,20 @@ void  OSIntExit (void)
             if (OSPrioHighRdy != OSPrioCur) {              /* No Ctx Sw if current task is highest rdy */
                 OSTCBHighRdy  = OSTCBPrioTbl[OSPrioHighRdy];
                 OSCtxSwCtr++;                              /* Keep track of the number of ctx switches */
+                itoa(OSTime,tmpBuf,10);
+                strcat(outputMsg,tmpBuf);
+                strcat(outputMsg, " Preempt ");
+                memset(tmpBuf,0,10);
+
+                itoa(OSPrioCur,tmpBuf,10);
+                strcat(outputMsg,tmpBuf);
+                memset(tmpBuf,0,10);
+                strcat(outputMsg,",");
+                itoa(OSPrioHighRdy,tmpBuf,10);
+                strcat(outputMsg,tmpBuf);
+                memset(tmpBuf,0,10);
+                strcat(outputMsg, "\n");
+
                 OSIntCtxSw();                              /* Perform interrupt level ctx switch       */
             }
         }
@@ -361,6 +378,7 @@ void  OSStatInit (void)
 *********************************************************************************************************
 */
 
+// TODO
 void  OSTimeTick (void)
 {
 #if OS_CRITICAL_METHOD == 3                                /* Allocate storage for CPU status register */
@@ -373,9 +391,11 @@ void  OSTimeTick (void)
 #if OS_TIME_GET_SET_EN > 0   
     OS_ENTER_CRITICAL();                                   /* Update the 32-bit tick counter           */
     OSTime++;
+    OSTCBCur->compTime -= 1;
     OS_EXIT_CRITICAL();
+    
 #endif
-    if (OSRunning == TRUE) {    
+    if (OSRunning == TRUE) {
         ptcb = OSTCBList;                                  /* Point at first TCB in TCB list           */
         while (ptcb->OSTCBPrio != OS_IDLE_PRIO) {          /* Go through all TCBs in TCB list          */
             OS_ENTER_CRITICAL();
@@ -866,6 +886,7 @@ static  void  OS_InitTCBList (void)
 *********************************************************************************************************
 */
 
+// TODO
 void  OS_Sched (void)
 {
 #if OS_CRITICAL_METHOD == 3                            /* Allocate storage for CPU status register     */
@@ -881,6 +902,20 @@ void  OS_Sched (void)
         if (OSPrioHighRdy != OSPrioCur) {              /* No Ctx Sw if current task is highest rdy     */
             OSTCBHighRdy = OSTCBPrioTbl[OSPrioHighRdy];
             OSCtxSwCtr++;                              /* Increment context switch counter             */
+            itoa(OSTime, tmpBuf, 10);
+            strcat(outputMsg, tmpBuf);
+            strcat(outputMsg, " Complete ");
+            memset(tmpBuf, 0, 10);
+
+            itoa(OSPrioCur, tmpBuf, 10);
+            strcat(outputMsg, tmpBuf);
+            memset(tmpBuf, 0, 10);
+            strcat(outputMsg, ",");
+            itoa(OSPrioHighRdy, tmpBuf, 10);
+            strcat(outputMsg, tmpBuf);
+            memset(tmpBuf, 0, 10);
+            strcat(outputMsg, "\n");
+
             OS_TASK_SW();                              /* Perform a context switch                     */
         }
     }
@@ -1049,6 +1084,22 @@ INT8U  OS_TCBInit (INT8U prio, OS_STK *ptos, OS_STK *pbos, INT16U id, INT32U stk
         ptcb->OSTCBPrio      = (INT8U)prio;                /* Load task priority into TCB              */
         ptcb->OSTCBStat      = OS_STAT_RDY;                /* Task is ready to run                     */
         ptcb->OSTCBDly       = 0;                          /* Task is not delayed                      */
+
+        // Seting something
+        // TODO
+        if(prio ==1){
+            ptcb->cycleTime = 1;
+            ptcb->compTime = ptcb->cycleTime;
+            ptcb->period = 3;
+        }else if(prio ==2){
+            ptcb->cycleTime = 3;
+            ptcb->compTime = ptcb->cycleTime;
+            ptcb->period = 6;
+        }else{
+            ptcb->cycleTime =0;
+            ptcb->compTime =0;
+            ptcb->period = 5;
+        }
 
 #if OS_TASK_CREATE_EXT_EN > 0
         ptcb->OSTCBExtPtr    = pext;                       /* Store pointer to TCB extension           */
