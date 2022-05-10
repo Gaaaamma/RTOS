@@ -1088,11 +1088,11 @@ INT8U  OS_TCBInit (INT8U prio, OS_STK *ptos, OS_STK *pbos, INT16U id, INT32U stk
         // Seting something
         // TODO
         if(prio ==3){
-            ptcb->cycleTime = 6;
+            ptcb->cycleTime = 11;
             ptcb->compTime = ptcb->cycleTime;
             ptcb->period = 200;
         }else if(prio ==4){
-            ptcb->cycleTime = 6;
+            ptcb->cycleTime = 12;
             ptcb->compTime = ptcb->cycleTime;
             ptcb->period = 300;
         }else if(prio ==5){
