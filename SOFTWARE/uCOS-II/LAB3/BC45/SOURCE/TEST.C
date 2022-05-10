@@ -26,9 +26,15 @@
 *                                               VARIABLES
 *********************************************************************************************************
 */
-
+INT32U zeroTime = 100;
+char dbgBuf[10] = {0};
 OS_STK        TaskStk[N_TASKS][TASK_STK_SIZE];        /* Tasks stacks                                  */
 OS_STK        TaskStartStk[TASK_STK_SIZE];
+// Resource
+INT8U errR1 ;
+INT8U errR2 ;
+OS_EVENT *R1 ;
+OS_EVENT *R2 ;
 
 /*
 *********************************************************************************************************
@@ -36,7 +42,10 @@ OS_STK        TaskStartStk[TASK_STK_SIZE];
 *********************************************************************************************************
 */
 
-        void  Task(void *data);                       /* Function prototypes of tasks                  */
+        void Task1(void *data);                        /* Function prototypes of tasks                  */
+        void Task2(void *data);                        /* Function prototypes of tasks                  */
+        void Task3(void *data);                        /* Function prototypes of tasks                  */
+
         void  printMsg(void *data);
         void  TaskStart(void *data);                  /* Function prototypes of Startup task           */
 static  void  TaskStartCreateTasks(void);
@@ -50,6 +59,8 @@ static  void  TaskStartCreateTasks(void);
 char intBuf[10]={0};
 void  main (void)
 {
+    // Resource allocation
+
     PC_DispClrScr(DISP_FGND_WHITE + DISP_BGND_BLACK);      /* Clear the screen                         */
 
     OSInit();                                              /* Initialize uC/OS-II                      */
@@ -109,12 +120,16 @@ void  TaskStart (void *pdata)
 // TODO
 static  void  TaskStartCreateTasks (void)
 {
+    R1 = OSMutexCreate(1, &errR1);
+    R2 = OSMutexCreate(2, &errR2);
+
     // Create period task
-    OSTaskCreate(Task, (void *)0, &TaskStk[0][TASK_STK_SIZE - 1], 1);
-    OSTaskCreate(Task, (void *)0, &TaskStk[1][TASK_STK_SIZE - 1], 2);
+    OSTaskCreate(Task1, (void *)0, &TaskStk[0][TASK_STK_SIZE - 1], 3);
+    OSTaskCreate(Task2, (void *)0, &TaskStk[1][TASK_STK_SIZE - 1], 4);
+    OSTaskCreate(Task3, (void *)0, &TaskStk[2][TASK_STK_SIZE - 1], 5);
 
     // Create printTask
-    OSTaskCreate(printMsg, (void *)0, &TaskStk[2][TASK_STK_SIZE - 1], 3);        
+    OSTaskCreate(printMsg, (void *)0, &TaskStk[3][TASK_STK_SIZE - 1], 6);        
 }
 
 /*
@@ -124,30 +139,46 @@ static  void  TaskStartCreateTasks (void)
 */
 
 // TODO
-void  Task (void *data)
+void  Task1 (void *data)
 {
     int start ;
     int end ;
     int toDelay ;
+    int onlyOnce_1 =1;
+    int onlyOnce_2 =1;
     start = OSTimeGet();
-    if(OSTCBCur->OSTCBPrio ==2){
-        start -=1 ;
-    }
-    itoa(OSTCBCur->OSTCBPrio,intBuf,10);
-    strcat(outputMsg,"Task");
-    strcat(outputMsg,intBuf);
-    strcat(outputMsg," startTime=");
-    memset(intBuf, 0, 10);
-    itoa(start, intBuf, 10);
-    strcat(outputMsg,intBuf);
-    memset(intBuf, 0, 10);
-    strcat(outputMsg,"\n");
+    
+    // Need to sleep to 108 sec
+    OSTimeDly(zeroTime+8-start);
+    start = zeroTime+8;
+
+    itoa(start, dbgBuf, 10);
+    strcat(outputMsg, "Task1 init start=");
+    strcat(outputMsg, dbgBuf);
+    strcat(outputMsg, "\n");
+    memset(dbgBuf, 0, 10);
 
     while(1){
+        onlyOnce_1 =1;
+        onlyOnce_2 =1;
         while(OSTCBCur->compTime > 0){
             // C unit of time is't done
-            // DO NOTHING
+            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_1 ==1){
+                //strcat(outputMsg, "Task1 is going to allocate R1");
+                strcat(outputMsg,"Task1 tries to allocate: R1\n");
+                onlyOnce_1 =0;
+                OSMutexPend(R1,99999,&errR1);
+            }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-4) && onlyOnce_2 ==1){
+                //strcat(outputMsg, "Task1 is going to allocate R2");
+                strcat(outputMsg,"Task1 tries to allocate: R2\n");
+                onlyOnce_2 =0;
+                OSMutexPend(R2,99999,&errR2);
+            }
         }
+        // DONE -> release R2 R1
+        OSMutexPost(R2);
+        OSMutexPost(R1);
+
         end = OSTimeGet();
         toDelay = (OSTCBCur->period) - (end-start);
         start = start + OSTCBCur->period;
@@ -155,19 +186,115 @@ void  Task (void *data)
         OSTCBCur->compTime = OSTCBCur->cycleTime;
         OS_EXIT_CRITICAL();
 
-        itoa(OSTCBCur->OSTCBPrio, intBuf, 10);
-        strcat(outputMsg, "Task");
-        strcat(outputMsg, intBuf);
-        strcat(outputMsg, " newStartTime=");
-        memset(intBuf, 0, 10);
-        itoa(start, intBuf, 10);
-        strcat(outputMsg,intBuf);
-        memset(intBuf, 0, 10);
+        itoa(start, dbgBuf, 10);
+        strcat(outputMsg, "Task1 next start=");
+        strcat(outputMsg, dbgBuf);
         strcat(outputMsg, "\n");
+        memset(dbgBuf, 0, 10);
+        
+        OSTimeDly(toDelay);
+    }
+}
+
+void  Task2 (void *data)
+{
+    int start ;
+    int end ;
+    int toDelay ;
+    int onlyOnce_2 =1;
+    start = OSTimeGet();
+
+    // Need to sleep to 104 sec
+    OSTimeDly(zeroTime+4-start);
+    start = zeroTime+4;
+
+    itoa(start, dbgBuf, 10);
+    strcat(outputMsg, "Task2 init start=");
+    strcat(outputMsg, dbgBuf);
+    strcat(outputMsg, "\n");
+    memset(dbgBuf, 0, 10);
+
+    while(1){
+        onlyOnce_2 =1;
+        while(OSTCBCur->compTime > 0){
+            // C unit of time is't done
+            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_2 ==1){
+                //strcat(outputMsg, "Task2 is going to allocate R2");
+                strcat(outputMsg,"Task2 tries to allocate: R2\n");
+                onlyOnce_2 =0;
+                OSMutexPend(R2,99999,&errR2);
+            }
+        }
+        // DONE -> release R2
+        OSMutexPost(R2);
+
+        end = OSTimeGet();
+        toDelay = (OSTCBCur->period) - (end-start);
+        start = start + OSTCBCur->period;
+        OS_ENTER_CRITICAL();
+        OSTCBCur->compTime = OSTCBCur->cycleTime;
+        OS_EXIT_CRITICAL();
+
+        itoa(start, dbgBuf, 10);
+        strcat(outputMsg, "Task2 next start=");
+        strcat(outputMsg, dbgBuf);
+        strcat(outputMsg, "\n");
+        memset(dbgBuf, 0, 10);
 
         OSTimeDly(toDelay);
     }
 }
+
+void  Task3 (void *data)
+{
+    int start ;
+    int end ;
+    int toDelay ;
+    int onlyOnce_1 =1;
+
+    start = OSTimeGet();
+
+    // Need to sleep to 100 sec
+    OSTimeDly(zeroTime-start);
+    start = zeroTime;
+
+    itoa(start, dbgBuf, 10);
+    strcat(outputMsg, "Task3 init start=");
+    strcat(outputMsg, dbgBuf);
+    strcat(outputMsg, "\n");
+    memset(dbgBuf, 0, 10);
+
+    while(1){
+        onlyOnce_1 =1;
+        while(OSTCBCur->compTime > 0){
+            // C unit of time is't done
+            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_1 ==1){
+                //strcat(outputMsg, "Task3 is going to allocate R1");
+                strcat(outputMsg, "Task3 tries to allocate: R1\n");
+                onlyOnce_1 =0;
+                OSMutexPend(R1,99999,&errR1);
+            }
+        }
+        // DONE -> release R1
+        OSMutexPost(R1);
+
+        end = OSTimeGet();
+        toDelay = (OSTCBCur->period) - (end-start);
+        start = start + OSTCBCur->period;
+        OS_ENTER_CRITICAL();
+        OSTCBCur->compTime = OSTCBCur->cycleTime;
+        OS_EXIT_CRITICAL();
+
+        itoa(start, dbgBuf, 10);
+        strcat(outputMsg, "Task3 next start=");
+        strcat(outputMsg, dbgBuf);
+        strcat(outputMsg, "\n");
+        memset(dbgBuf, 0, 10);
+
+        OSTimeDly(toDelay);
+    }
+}
+
 void  printMsg(void *data){
     while(1){
         printf("%s", outputMsg);

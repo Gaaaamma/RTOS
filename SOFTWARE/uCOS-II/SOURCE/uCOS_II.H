@@ -405,6 +405,7 @@ typedef struct os_tcb {
     INT8U          OSTCBBitX;          /* Bit mask to access bit position in ready table               */
     INT8U          OSTCBBitY;          /* Bit mask to access bit position in ready group               */
 
+    // TODO
     INT32U         compTime;   // C unit of time
     INT32U         period;    // P unit of time
     INT32U         cycleTime; // Fixed cycle time

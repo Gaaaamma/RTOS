@@ -1087,18 +1087,22 @@ INT8U  OS_TCBInit (INT8U prio, OS_STK *ptos, OS_STK *pbos, INT16U id, INT32U stk
 
         // Seting something
         // TODO
-        if(prio ==1){
-            ptcb->cycleTime = 1;
+        if(prio ==3){
+            ptcb->cycleTime = 6;
             ptcb->compTime = ptcb->cycleTime;
-            ptcb->period = 3;
-        }else if(prio ==2){
-            ptcb->cycleTime = 3;
+            ptcb->period = 200;
+        }else if(prio ==4){
+            ptcb->cycleTime = 6;
             ptcb->compTime = ptcb->cycleTime;
-            ptcb->period = 6;
+            ptcb->period = 300;
+        }else if(prio ==5){
+            ptcb->cycleTime = 9;
+            ptcb->compTime = ptcb->cycleTime;
+            ptcb->period = 400;
         }else{
             ptcb->cycleTime =0;
             ptcb->compTime =0;
-            ptcb->period = 5;
+            ptcb->period = 500;
         }
 
 #if OS_TASK_CREATE_EXT_EN > 0

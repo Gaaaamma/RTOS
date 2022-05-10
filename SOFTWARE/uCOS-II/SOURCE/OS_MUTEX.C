@@ -21,6 +21,8 @@
 *                                            LOCAL CONSTANTS
 *********************************************************************************************************
 */
+char mutexTmpBuf[10] = {0};
+char unlockMutexTmpBuf[10]={0};
 
 #define  OS_MUTEX_KEEP_LOWER_8   0x00FF
 #define  OS_MUTEX_KEEP_UPPER_8   0xFF00
@@ -136,11 +138,13 @@ OS_EVENT  *OSMutexCreate (INT8U prio, INT8U *err)
 
     if (OSIntNesting > 0) {                                /* See if called from ISR ...               */
         *err = OS_ERR_CREATE_ISR;                          /* ... can't CREATE mutex from an ISR       */
+        strcat(outputMsg, "mutex create fail: Can't create from an ISR\n");
         return ((OS_EVENT *)0);
     }
 #if OS_ARG_CHK_EN > 0
     if (prio >= OS_LOWEST_PRIO) {                          /* Validate PIP                             */
         *err = OS_PRIO_INVALID;
+        strcat(outputMsg, "mutex create fail: Validate PIP\n");
         return ((OS_EVENT *)0);
     }
 #endif
@@ -148,6 +152,7 @@ OS_EVENT  *OSMutexCreate (INT8U prio, INT8U *err)
     if (OSTCBPrioTbl[prio] != (OS_TCB *)0) {               /* Mutex priority must not already exist    */
         OS_EXIT_CRITICAL();                                /* Task already exist at priority ...       */
         *err = OS_PRIO_EXIST;                              /* ... inheritance priority                 */
+        strcat(outputMsg, "mutex create fail: priority already exists\n");
         return ((OS_EVENT *)0);                            
     }
     OSTCBPrioTbl[prio] = (OS_TCB *)1;                      /* Reserve the table entry                  */
@@ -156,6 +161,7 @@ OS_EVENT  *OSMutexCreate (INT8U prio, INT8U *err)
         OSTCBPrioTbl[prio] = (OS_TCB *)0;                  /* No, Release the table entry              */
         OS_EXIT_CRITICAL();
         *err               = OS_ERR_PEVENT_NULL;           /* No more event control blocks             */
+        strcat(outputMsg, "mutex create fail: No more event control blocks\n");
         return (pevent);
     }
     OSEventFreeList     = (OS_EVENT *)OSEventFreeList->OSEventPtr;   /* Adjust the free list           */
@@ -165,6 +171,7 @@ OS_EVENT  *OSMutexCreate (INT8U prio, INT8U *err)
     pevent->OSEventPtr  = (void *)0;                       /* No task owning the mutex                 */
     OS_EventWaitListInit(pevent);
     *err                = OS_NO_ERR;
+    strcat(outputMsg, "mutex create success: NO ERR\n");
     return (pevent);
 }
 
@@ -303,11 +310,13 @@ OS_EVENT  *OSMutexDel (OS_EVENT *pevent, INT8U opt, INT8U *err)
 *              2) You MUST NOT change the priority of the task that owns the mutex
 *********************************************************************************************************
 */
+// TODO OSMutexPend
 void  OSMutexPend (OS_EVENT *pevent, INT16U timeout, INT8U *err)
 {
 #if OS_CRITICAL_METHOD == 3                                /* Allocate storage for CPU status register */
     OS_CPU_SR  cpu_sr;
-#endif    
+#endif
+    INT8U      originPrio;                                 /* In order to record original prio */    
     INT8U      pip;                                        /* Priority Inheritance Priority (PIP)      */
     INT8U      mprio;                                      /* Mutex owner priority                     */
     BOOLEAN    rdy;                                        /* Flag indicating task was ready           */
@@ -316,15 +325,18 @@ void  OSMutexPend (OS_EVENT *pevent, INT16U timeout, INT8U *err)
 
     if (OSIntNesting > 0) {                                /* See if called from ISR ...               */
         *err = OS_ERR_PEND_ISR;                            /* ... can't PEND from an ISR               */
+        strcat(outputMsg, "mutex fail: Can't pend from an ISR\n");
         return;
     }
 #if OS_ARG_CHK_EN > 0
     if (pevent == (OS_EVENT *)0) {                         /* Validate 'pevent'                        */
         *err = OS_ERR_PEVENT_NULL;
+        strcat(outputMsg, "mutex fail: Validate pevent\n");
         return;
     }
     if (pevent->OSEventType != OS_EVENT_TYPE_MUTEX) {      /* Validate event block type                */
         *err = OS_ERR_EVENT_TYPE;
+        strcat(outputMsg, "mutex fail: Validate event block type\n");
         return;
     }
 #endif
@@ -335,33 +347,102 @@ void  OSMutexPend (OS_EVENT *pevent, INT16U timeout, INT8U *err)
         pevent->OSEventPtr  = (void *)OSTCBCur;            /*      Point to owning task's OS_TCB       */
         OS_EXIT_CRITICAL();
         *err  = OS_NO_ERR;
+
+        // Modify Here -> 
+        // We need to boost the priority when some task had locked the resource
+        pip = (INT8U)(pevent->OSEventCnt >> 8);                      /*     Get PIP from mutex            */
+        mprio = (INT8U)(pevent->OSEventCnt & OS_MUTEX_KEEP_LOWER_8); /*     Get priority of mutex owner   */
+        ptcb = (OS_TCB *)(pevent->OSEventPtr);                       /*     Point to TCB of mutex owner   */
+        if (ptcb->OSTCBPrio > pip ){                                 /*     Need to promote prio of owner?*/
+            if ((OSRdyTbl[ptcb->OSTCBY] & ptcb->OSTCBBitX) != 0x00){   /*     See if mutex owner is ready   */
+                /*     Yes, Remove owner from Rdy ...*/
+                /*          ... list at current prio */
+                if ((OSRdyTbl[ptcb->OSTCBY] &= ~ptcb->OSTCBBitX) == 0x00){
+                    OSRdyGrp &= ~ptcb->OSTCBBitY;
+                }
+                rdy = TRUE;
+            }else{
+                rdy = FALSE; /* No                                */
+            }
+            originPrio = ptcb->OSTCBPrio;
+            ptcb->OSTCBPrio = pip; /* Change owner task prio to PIP            */
+            ptcb->OSTCBY = ptcb->OSTCBPrio >> 3;
+            ptcb->OSTCBBitY = OSMapTbl[ptcb->OSTCBY];
+            ptcb->OSTCBX = ptcb->OSTCBPrio & 0x07;
+            ptcb->OSTCBBitX = OSMapTbl[ptcb->OSTCBX];
+            if (rdy == TRUE){                                /* If task was ready at owner's priority ...*/
+                OSRdyGrp |= ptcb->OSTCBBitY; /* ... make it ready at new priority.       */
+                OSRdyTbl[ptcb->OSTCBY] |= ptcb->OSTCBBitX;
+            }
+            OSTCBPrioTbl[pip] = (OS_TCB *)ptcb;
+
+            // Push Message
+            itoa(OSTime, mutexTmpBuf, 10);
+            strcat(outputMsg, mutexTmpBuf);
+            strcat(outputMsg, " lock ");
+            memset(mutexTmpBuf, 0, 10);
+
+            // Check resource is R1 or R2
+            if(pip ==1){
+                // R1
+                strcat(outputMsg, " R1 (Prio=");
+            }else if(pip ==2){
+                // R2
+                strcat(outputMsg, " R2 (Prio=");
+            }
+
+            // Cehck original prio
+            itoa(originPrio, mutexTmpBuf, 10);
+            strcat(outputMsg, mutexTmpBuf);
+            memset(mutexTmpBuf, 0, 10);
+
+            strcat(outputMsg, " changes to=");
+
+            // Check final prio
+            itoa(pip, mutexTmpBuf, 10);
+            strcat(outputMsg, mutexTmpBuf);
+            memset(mutexTmpBuf, 0, 10);
+
+            strcat(outputMsg, ")\n");
+        }else{
+            // Try to lock a low priority Mutex
+            // Push Message
+            itoa(OSTime, mutexTmpBuf, 10);
+            strcat(outputMsg, mutexTmpBuf);
+            strcat(outputMsg, " lock ");
+            memset(mutexTmpBuf, 0, 10);
+
+            // Check resource is R1 or R2
+            if(pip ==1){
+                // R1
+                strcat(outputMsg, " R1 (Prio=");
+            }else if(pip ==2){
+                // R2
+                strcat(outputMsg, " R2 (Prio=");
+            }
+
+            // Cehck original prio
+            itoa(ptcb->OSTCBPrio, mutexTmpBuf, 10);
+            strcat(outputMsg, mutexTmpBuf);
+            memset(mutexTmpBuf, 0, 10);
+
+            strcat(outputMsg, " changes to=");
+
+            // Check final prio
+            itoa(ptcb->OSTCBPrio, mutexTmpBuf, 10);
+            strcat(outputMsg, mutexTmpBuf);
+            memset(mutexTmpBuf, 0, 10);
+            strcat(outputMsg, ")\n");
+        }
         return;
     }
-    pip   = (INT8U)(pevent->OSEventCnt >> 8);                     /* No, Get PIP from mutex            */
-    mprio = (INT8U)(pevent->OSEventCnt & OS_MUTEX_KEEP_LOWER_8);  /*     Get priority of mutex owner   */
-    ptcb  = (OS_TCB *)(pevent->OSEventPtr);                       /*     Point to TCB of mutex owner   */
-    if (ptcb->OSTCBPrio != pip && mprio > OSTCBCur->OSTCBPrio) {  /*     Need to promote prio of owner?*/
-        if ((OSRdyTbl[ptcb->OSTCBY] & ptcb->OSTCBBitX) != 0x00) { /*     See if mutex owner is ready   */
-                                                                  /*     Yes, Remove owner from Rdy ...*/
-                                                                  /*          ... list at current prio */
-            if ((OSRdyTbl[ptcb->OSTCBY] &= ~ptcb->OSTCBBitX) == 0x00) {
-                OSRdyGrp &= ~ptcb->OSTCBBitY;
-            }
-            rdy = TRUE;
-        } else {
-            rdy = FALSE;                                          /* No                                */
-        }
-        ptcb->OSTCBPrio         = pip;                     /* Change owner task prio to PIP            */
-        ptcb->OSTCBY            = ptcb->OSTCBPrio >> 3;
-        ptcb->OSTCBBitY         = OSMapTbl[ptcb->OSTCBY];
-        ptcb->OSTCBX            = ptcb->OSTCBPrio & 0x07;
-        ptcb->OSTCBBitX         = OSMapTbl[ptcb->OSTCBX];
-        if (rdy == TRUE) {                                 /* If task was ready at owner's priority ...*/
-            OSRdyGrp               |= ptcb->OSTCBBitY;     /* ... make it ready at new priority.       */
-            OSRdyTbl[ptcb->OSTCBY] |= ptcb->OSTCBBitX;
-        }
-        OSTCBPrioTbl[pip]       = (OS_TCB *)ptcb;
-    }
+    strcat(outputMsg, "mutex isn't available\n");
+
+    // Not available -> just wait
+    pip = (INT8U)(pevent->OSEventCnt >> 8);                      /*     Get PIP from mutex            */
+    mprio = (INT8U)(pevent->OSEventCnt & OS_MUTEX_KEEP_LOWER_8); /*     Get priority of mutex owner   */
+    ptcb = (OS_TCB *)(pevent->OSEventPtr);                       /*     Point to TCB of mutex owner   */
+
     OSTCBCur->OSTCBStat |= OS_STAT_MUTEX;             /* Mutex not available, pend current task        */
     OSTCBCur->OSTCBDly   = timeout;                   /* Store timeout in current task's TCB           */
     OS_EventTaskWait(pevent);                         /* Suspend task until event or timeout occurs    */
@@ -395,7 +476,7 @@ void  OSMutexPend (OS_EVENT *pevent, INT16U timeout, INT8U *err)
 *              OS_ERR_NOT_MUTEX_OWNER  The task that did the post is NOT the owner of the MUTEX.
 *********************************************************************************************************
 */
-
+// TODO OSMutexPost
 INT8U  OSMutexPost (OS_EVENT *pevent)
 {
 #if OS_CRITICAL_METHOD == 3                           /* Allocate storage for CPU status register      */
@@ -427,6 +508,7 @@ INT8U  OSMutexPost (OS_EVENT *pevent)
     if (OSTCBCur->OSTCBPrio == pip) {                 /* Did we have to raise current task's priority? */
                                                       /* Yes, Return to original priority              */
                                                       /*      Remove owner from ready list at 'pip'    */
+                                                      
         if ((OSRdyTbl[OSTCBCur->OSTCBY] &= ~OSTCBCur->OSTCBBitX) == 0) {
             OSRdyGrp &= ~OSTCBCur->OSTCBBitY;
         }
@@ -438,7 +520,67 @@ INT8U  OSMutexPost (OS_EVENT *pevent)
         OSRdyGrp                   |= OSTCBCur->OSTCBBitY;
         OSRdyTbl[OSTCBCur->OSTCBY] |= OSTCBCur->OSTCBBitX;
         OSTCBPrioTbl[prio]          = (OS_TCB *)OSTCBCur;
+
+        // Push Message
+        itoa(OSTime, unlockMutexTmpBuf, 10);
+        strcat(outputMsg, unlockMutexTmpBuf);
+        strcat(outputMsg, " unlock ");
+        memset(unlockMutexTmpBuf, 0, 10);
+
+        // Check resource is R1 or R2
+        if (pip == 1){
+            // R1
+            strcat(outputMsg, " R1 (Prio=");
+        }else if (pip == 2){
+            // R2
+            strcat(outputMsg, " R2 (Prio=");
+        }
+
+        // Cehck original prio
+        itoa(pip, unlockMutexTmpBuf, 10);
+        strcat(outputMsg, unlockMutexTmpBuf);
+        memset(unlockMutexTmpBuf, 0, 10);
+
+        strcat(outputMsg, " changes to=");
+
+        // Check final prio
+        itoa(prio, unlockMutexTmpBuf, 10);
+        strcat(outputMsg, unlockMutexTmpBuf);
+        memset(unlockMutexTmpBuf, 0, 10);
+
+        strcat(outputMsg, ")\n");
+    }else if(OSTCBCur->OSTCBPrio < pip){
+        // Unlock a low priority resource
+        // Push Message
+        itoa(OSTime, unlockMutexTmpBuf, 10);
+        strcat(outputMsg, unlockMutexTmpBuf);
+        strcat(outputMsg, " unlock ");
+        memset(unlockMutexTmpBuf, 0, 10);
+
+        // Check resource is R1 or R2
+        if (pip == 1){
+            // R1
+            strcat(outputMsg, " R1 (Prio=");
+        }else if (pip == 2){
+            // R2
+            strcat(outputMsg, " R2 (Prio=");
+        }
+
+        // Cehck original prio
+        itoa(OSTCBCur->OSTCBPrio, unlockMutexTmpBuf, 10);
+        strcat(outputMsg, unlockMutexTmpBuf);
+        memset(unlockMutexTmpBuf, 0, 10);
+
+        strcat(outputMsg, " changes to=");
+
+        // Check final prio
+        itoa(OSTCBCur->OSTCBPrio, unlockMutexTmpBuf, 10);
+        strcat(outputMsg, unlockMutexTmpBuf);
+        memset(unlockMutexTmpBuf, 0, 10);
+
+        strcat(outputMsg, ")\n");
     }
+    
     OSTCBPrioTbl[pip] = (OS_TCB *)1;                  /* Reserve table entry                           */
     if (pevent->OSEventGrp != 0x00) {                 /* Any task waiting for the mutex?               */
                                                       /* Yes, Make HPT waiting for mutex ready         */
