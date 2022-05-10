@@ -152,12 +152,6 @@ void  Task1 (void *data)
     OSTimeDly(zeroTime+8-start);
     start = zeroTime+8;
 
-    itoa(start, dbgBuf, 10);
-    strcat(outputMsg, "Task1 init start=");
-    strcat(outputMsg, dbgBuf);
-    strcat(outputMsg, "\n");
-    memset(dbgBuf, 0, 10);
-
     while(1){
         onlyOnce_1 =1;
         onlyOnce_2 =1;
@@ -185,13 +179,6 @@ void  Task1 (void *data)
         OS_ENTER_CRITICAL();
         OSTCBCur->compTime = OSTCBCur->cycleTime;
         OS_EXIT_CRITICAL();
-
-        itoa(start, dbgBuf, 10);
-        strcat(outputMsg, "Task1 next start=");
-        strcat(outputMsg, dbgBuf);
-        strcat(outputMsg, "\n");
-        memset(dbgBuf, 0, 10);
-        
         OSTimeDly(toDelay);
     }
 }
@@ -207,12 +194,6 @@ void  Task2 (void *data)
     // Need to sleep to 104 sec
     OSTimeDly(zeroTime+4-start);
     start = zeroTime+4;
-
-    itoa(start, dbgBuf, 10);
-    strcat(outputMsg, "Task2 init start=");
-    strcat(outputMsg, dbgBuf);
-    strcat(outputMsg, "\n");
-    memset(dbgBuf, 0, 10);
 
     while(1){
         onlyOnce_2 =1;
@@ -235,12 +216,6 @@ void  Task2 (void *data)
         OSTCBCur->compTime = OSTCBCur->cycleTime;
         OS_EXIT_CRITICAL();
 
-        itoa(start, dbgBuf, 10);
-        strcat(outputMsg, "Task2 next start=");
-        strcat(outputMsg, dbgBuf);
-        strcat(outputMsg, "\n");
-        memset(dbgBuf, 0, 10);
-
         OSTimeDly(toDelay);
     }
 }
@@ -257,12 +232,6 @@ void  Task3 (void *data)
     // Need to sleep to 100 sec
     OSTimeDly(zeroTime-start);
     start = zeroTime;
-
-    itoa(start, dbgBuf, 10);
-    strcat(outputMsg, "Task3 init start=");
-    strcat(outputMsg, dbgBuf);
-    strcat(outputMsg, "\n");
-    memset(dbgBuf, 0, 10);
 
     while(1){
         onlyOnce_1 =1;
@@ -284,12 +253,6 @@ void  Task3 (void *data)
         OS_ENTER_CRITICAL();
         OSTCBCur->compTime = OSTCBCur->cycleTime;
         OS_EXIT_CRITICAL();
-
-        itoa(start, dbgBuf, 10);
-        strcat(outputMsg, "Task3 next start=");
-        strcat(outputMsg, dbgBuf);
-        strcat(outputMsg, "\n");
-        memset(dbgBuf, 0, 10);
 
         OSTimeDly(toDelay);
     }

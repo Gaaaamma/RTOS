@@ -365,6 +365,7 @@ void  OSMutexPend (OS_EVENT *pevent, INT16U timeout, INT8U *err)
                 rdy = FALSE; /* No                                */
             }
             originPrio = ptcb->OSTCBPrio;
+            OSPrioCur = pip; // Preempt error
             ptcb->OSTCBPrio = pip; /* Change owner task prio to PIP            */
             ptcb->OSTCBY = ptcb->OSTCBPrio >> 3;
             ptcb->OSTCBBitY = OSMapTbl[ptcb->OSTCBY];
@@ -512,6 +513,7 @@ INT8U  OSMutexPost (OS_EVENT *pevent)
         if ((OSRdyTbl[OSTCBCur->OSTCBY] &= ~OSTCBCur->OSTCBBitX) == 0) {
             OSRdyGrp &= ~OSTCBCur->OSTCBBitY;
         }
+        OSPrioCur = prio ;// Complete error,dest
         OSTCBCur->OSTCBPrio         = prio;
         OSTCBCur->OSTCBY            = prio >> 3;
         OSTCBCur->OSTCBBitY         = OSMapTbl[OSTCBCur->OSTCBY];
