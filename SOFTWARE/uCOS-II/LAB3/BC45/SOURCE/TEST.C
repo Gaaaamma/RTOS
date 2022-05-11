@@ -161,12 +161,12 @@ void  Task1 (void *data)
         while(OSTCBCur->compTime > 0){
             // C unit of time is't done
             if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_2 ==1){
-                strcat(outputMsg,"Task1 tries to allocate: R2\n");
+                //strcat(outputMsg,"Task1 tries to allocate: R2\n");
                 onlyOnce_2 =0;
                 OSMutexPend(R2,99999,&errR2);
 
             }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-5) && onlyOnce_1 ==1){
-                strcat(outputMsg,"Task1 tries to allocate: R1\n");
+                //strcat(outputMsg,"Task1 tries to allocate: R1\n");
                 onlyOnce_1 =0;
                 OSMutexPend(R1,99999,&errR1);
             }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-8) && onlyReleaseOnce ==1){
@@ -209,11 +209,11 @@ void  Task2 (void *data)
         while(OSTCBCur->compTime > 0){
             // C unit of time is't done
             if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_1 ==1){
-                strcat(outputMsg,"Task2 tries to allocate: R1\n");
+                //strcat(outputMsg,"Task2 tries to allocate: R1\n");
                 onlyOnce_1 =0;
                 OSMutexPend(R1,99999,&errR1);
             }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-8) && onlyOnce_2 ==1){
-                strcat(outputMsg, "Task2 tries to allocate: R2\n");
+                //strcat(outputMsg, "Task2 tries to allocate: R2\n");
                 onlyOnce_2 = 0;
                 OSMutexPend(R2, 99999, &errR2);
             }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-10) && onlyReleaseOnce ==1){
@@ -254,7 +254,7 @@ void  Task3 (void *data)
             // C unit of time is't done
             if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_1 ==1){
                 //strcat(outputMsg, "Task3 is going to allocate R1");
-                strcat(outputMsg, "Task3 tries to allocate: R1\n");
+                //strcat(outputMsg, "Task3 tries to allocate: R1\n");
                 onlyOnce_1 =0;
                 OSMutexPend(R1,99999,&errR1);
             }
