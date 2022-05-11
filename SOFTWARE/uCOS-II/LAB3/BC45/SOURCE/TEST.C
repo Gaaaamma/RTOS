@@ -126,7 +126,7 @@ static  void  TaskStartCreateTasks (void)
     // Create period task
     OSTaskCreate(Task1, (void *)0, &TaskStk[0][TASK_STK_SIZE - 1], 3);
     OSTaskCreate(Task2, (void *)0, &TaskStk[1][TASK_STK_SIZE - 1], 4);
-    //OSTaskCreate(Task3, (void *)0, &TaskStk[2][TASK_STK_SIZE - 1], 5);
+    OSTaskCreate(Task3, (void *)0, &TaskStk[2][TASK_STK_SIZE - 1], 5);
 
     // Create printTask
     OSTaskCreate(printMsg, (void *)0, &TaskStk[3][TASK_STK_SIZE - 1], 6);        
@@ -149,9 +149,9 @@ void  Task1 (void *data)
     int onlyReleaseOnce =1;
     start = OSTimeGet();
     
-    // Need to sleep to 105 sec
-    OSTimeDly(zeroTime+5-start);
-    start = zeroTime+5;
+    // Need to sleep to 108 sec
+    OSTimeDly(zeroTime+8-start);
+    start = zeroTime+8;
 
     while(1){
         onlyOnce_1 =1;
@@ -160,22 +160,20 @@ void  Task1 (void *data)
 
         while(OSTCBCur->compTime > 0){
             // C unit of time is't done
-            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_2 ==1){
-                //strcat(outputMsg,"Task1 tries to allocate: R2\n");
-                onlyOnce_2 =0;
-                OSMutexPend(R2,99999,&errR2);
-
-            }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-5) && onlyOnce_1 ==1){
+            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_1 ==1){
                 //strcat(outputMsg,"Task1 tries to allocate: R1\n");
                 onlyOnce_1 =0;
                 OSMutexPend(R1,99999,&errR1);
-            }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-8) && onlyReleaseOnce ==1){
-                onlyReleaseOnce =0;
-                OSMutexPost(R1);
+
+            }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-4) && onlyOnce_2 ==1){
+                //strcat(outputMsg,"Task1 tries to allocate: R2\n");
+                onlyOnce_2 =0;
+                OSMutexPend(R2,99999,&errR2);
             }
         }
-        // DONE -> release R2
+        // DONE -> release R2 R1
         OSMutexPost(R2);
+        OSMutexPost(R1);
 
         end = OSTimeGet();
         toDelay = (OSTCBCur->period) - (end-start);
@@ -197,9 +195,9 @@ void  Task2 (void *data)
     int onlyReleaseOnce =1;
     start = OSTimeGet();
 
-    // Need to sleep to 100 sec
-    OSTimeDly(zeroTime-start);
-    start = zeroTime;
+    // Need to sleep to 104 sec
+    OSTimeDly(zeroTime+4-start);
+    start = zeroTime+4;
 
     while(1){
         onlyOnce_1 =1;
@@ -208,21 +206,14 @@ void  Task2 (void *data)
 
         while(OSTCBCur->compTime > 0){
             // C unit of time is't done
-            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_1 ==1){
-                //strcat(outputMsg,"Task2 tries to allocate: R1\n");
-                onlyOnce_1 =0;
-                OSMutexPend(R1,99999,&errR1);
-            }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-8) && onlyOnce_2 ==1){
-                //strcat(outputMsg, "Task2 tries to allocate: R2\n");
-                onlyOnce_2 = 0;
-                OSMutexPend(R2, 99999, &errR2);
-            }else if(OSTCBCur->compTime == (OSTCBCur->cycleTime-10) && onlyReleaseOnce ==1){
-                onlyReleaseOnce =0;
-                OSMutexPost(R2);
+            if(OSTCBCur->compTime == (OSTCBCur->cycleTime-2) && onlyOnce_2 ==1){
+                //strcat(outputMsg,"Task2 tries to allocate: R2\n");
+                onlyOnce_2 =0;
+                OSMutexPend(R2,99999,&errR2);
             }
         }
-        // DONE -> release R1
-        OSMutexPost(R1);
+        // DONE -> release R2
+        OSMutexPost(R2);
 
         end = OSTimeGet();
         toDelay = (OSTCBCur->period) - (end-start);
