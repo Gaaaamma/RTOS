@@ -42,7 +42,6 @@ Rate Monotonic Scheduling with Task1(1,3) Task2(3,6)<br>
 
 
 ## LAB3
-### Execution
 **Implement Ceiling Priority Protocol.<br>**
 
 Simulate the scenario:<br>
